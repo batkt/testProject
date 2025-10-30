@@ -158,7 +158,7 @@ router.post("/tulburBodoy", async (req: Request, res: Response, next: NextFuncti
       garsan.getTime(),
       orson.getTime(),
       1000,                  // үндсэн үнэ
-      true,                  // үндсэн мин ашиглах эсэх
+      false,                  // үндсэн мин ашиглах эсэх
       0,                     // дотор зогсоол минут
       undefined              // зөрүү минут (алгассан)
     );
