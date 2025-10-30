@@ -16,7 +16,7 @@ const tulburBodoy = async (
   const diff = Math.abs(garakh - orson);
   let niitMinut = zuruuMinut ? zuruuMinut : Math.floor(diff / (1000 * 60));
   const seconds = (t: any) => {
-    const m = moment.utc(t);
+    const m = moment(t);
     return m.hours() * 3600 + m.minutes() * 60 + m.seconds();
   };
   const tariffTootsokh = (v: any, min: number) => {
