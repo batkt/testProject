@@ -42,14 +42,14 @@ const tulburBodoy = async (
       x.tariff.sort(function (a: any, b: any) {
         return a.minut - b.minut;
       });
-      if (zStartSec <= orsonSec && zEndSec > orsonSec && zEndSec >= garsanSec) {
+      if (zStartSec <= orsonSec && zEndSec >= orsonSec && zEndSec >= garsanSec) {
         var bsanMin: number = 0;
         if (!!gantsXuwiartai) bsanMin = zuruuMinut ? zuruuMinut : (zEndSec - orsonSec + (garsanSec - zStartSec)) / 60;
         else bsanMin = zuruuMinut ? zuruuMinut : (garsanSec - orsonSec) / 60;
         const tariff = await tariffTootsokh(x.tariff, bsanMin);
         if (tariff > 0) tulbur = tariff;
         break;
-      } else if (zStartSec <= orsonSec && zEndSec > orsonSec && zEndSec <= garsanSec) {
+      } else if (zStartSec <= orsonSec && zEndSec >= orsonSec && zEndSec <= garsanSec) {
         const bsanMin = Math.trunc(zuruuMinut ? zuruuMinut : (zEndSec - orsonSec) / 60);
         const tariff = await tariffTootsokh(x.tariff, bsanMin);
         if (tariff > 0) tulbur = tulbur + tariff;
