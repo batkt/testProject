@@ -128,7 +128,7 @@ const tulburBodoy = async (
   return dun;
 };
 
-router.post("/tasalbariinTulburTulye", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/tulburBodoy", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const garsan = new Date(); // одоо цаг
     const orson = new Date("2025-10-28T23:59:45.412"); // орсон цаг
