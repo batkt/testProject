@@ -27,6 +27,7 @@ const tulburBodoy = async (
       tariff = z.tulbur;
       if (min <= z.minut) break;
     }
+    console.log('tariffTootsokh ------------>> ', min, tariff, maxMin, undsenMin);
     if (min > maxMin) {
       const time = undsenMin ? 30 : 60;
       let tsag = Math.ceil((min - maxMin) / time);
