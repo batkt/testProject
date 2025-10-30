@@ -9,7 +9,7 @@ const server = http.createServer(app);
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use("/api", parkingRouter);
+app.use(parkingRouter);
 
 // Start server
 const PORT = 9091;
