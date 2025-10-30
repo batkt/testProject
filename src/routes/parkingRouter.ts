@@ -16,22 +16,21 @@ const tulburBodoy = async (
   const diff = Math.abs(garakh - orson);
   let niitMinut = zuruuMinut ? zuruuMinut : Math.floor(diff / (1000 * 60));
   const seconds = (t: any) => {
-    const m = moment(t); 
+    const m = moment(t);
     return m.hours() * 3600 + m.minutes() * 60 + m.seconds();
   };
-  const tariffTootsokh = async (v: any, min: number) => {
-    let maxMin = v[v.length - 1]?.minut;
-    let tariff = 0;
-    for await (const z of v) {
-      tariff = z.tulbur;
-      if (min <= z.minut) break;
-    }
-    if (min > maxMin) {
-      const time = undsenMin ? 30 : 60;
-      let tsag = Math.ceil((min - maxMin) / time);
-      tariff = tsag * undsenUne + tariff;
-    }
-    return tariff;
+  const tariffTootsokh = (v: any, min: number) => {
+    const maxMin = v[v.length - 1]?.minut ?? 0;
+    const baseTariff = v[v.length - 1]?.tulbur ?? 0;
+
+    // 1) минутыг бүхэл болгоё (секунд/миллисекундээс үүдэх “хөвөгч” алдаа арилгана)
+    const wholeMin = Math.floor(min);
+
+    // 2) илүүдлийг 0-ээс доош унахгүй байхаар хамгаалъя
+    const step = undsenMin ? 30 : 60;
+    const overBlocks = Math.max(0, Math.ceil((wholeMin - maxMin) / step));
+
+    return baseTariff + overBlocks * undsenUne;
   };
   const tulburuudTootsokh = async (orsonSec: number, garsanSec: number, gantsXuwiartai: boolean = false) => {
     let tulbur = 0;
