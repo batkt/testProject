@@ -16,7 +16,7 @@ const tulburBodoy = async (
   const diff = Math.abs(garakh - orson);
   let niitMinut = zuruuMinut ? zuruuMinut : Math.floor(diff / (1000 * 60));
   const seconds = (t: any) => {
-    const m = moment(t);
+    const m = moment.utc(t); // ← бүгдийг UTC дээр ажиллуулна
     return m.hours() * 3600 + m.minutes() * 60 + m.seconds();
   };
   const tariffTootsokh = (v: any, min: number) => {
@@ -148,7 +148,7 @@ const tulburBodoy = async (
 
 router.post("/tulburBodoy", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const garsan = new Date("2025-10-30T09:05:45.412"); // одоо цаг
+    const garsan = new Date(); // одоо цаг
     const orson = new Date("2025-10-29T23:59:45.412"); // орсон цаг
 
     const dun = await tulburBodoy(
