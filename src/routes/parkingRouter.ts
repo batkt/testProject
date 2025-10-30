@@ -16,9 +16,8 @@ const tulburBodoy = async (
   const diff = Math.abs(garakh - orson);
   let niitMinut = zuruuMinut ? zuruuMinut : Math.floor(diff / (1000 * 60));
   const seconds = async (t: any) => {
-    const tt = moment(t).format('HH:mm');
-    let [tsag, min] = tt.split(':').map(Number);
-    return tsag * 3600 + min * 60;
+    const m = moment(t);
+    return m.hours() * 3600 + m.minutes() * 60 + m.seconds();
   };
   const tariffTootsokh = async (v: any, min: number) => {
     let maxMin = v[v.length - 1]?.minut;
@@ -39,28 +38,49 @@ const tulburBodoy = async (
     for await (const x of tulburuud) {
       const zStartSec = await seconds(x.tsag[0]);
       const zEndSec = await seconds(x.tsag[1]);
-      x.tariff.sort(function (a: any, b: any) {
-        return a.minut - b.minut;
-      });
-      if (zStartSec <= orsonSec && zEndSec > orsonSec && zEndSec >= garsanSec) {
-        var bsanMin: number = 0;
-        if (!!gantsXuwiartai) bsanMin = zuruuMinut ? zuruuMinut : (zEndSec - orsonSec + (garsanSec - zStartSec)) / 60;
-        else bsanMin = zuruuMinut ? zuruuMinut : (garsanSec - orsonSec) / 60;
-        const tariff = await tariffTootsokh(x.tariff, bsanMin);
-        if (tariff > 0) tulbur = tariff;
-        break;
-      } else if (zStartSec <= orsonSec && zEndSec > orsonSec && zEndSec <= garsanSec) {
-        const bsanMin = Math.trunc(zuruuMinut ? zuruuMinut : (zEndSec - orsonSec) / 60);
-        const tariff = await tariffTootsokh(x.tariff, bsanMin);
-        if (tariff > 0) tulbur = tulbur + tariff;
-      } else if (orsonSec < zStartSec && zStartSec < garsanSec && zEndSec >= garsanSec) {
-        const bsanMin = zuruuMinut ? zuruuMinut : (garsanSec - zStartSec) / 60;
-        const tariff = await tariffTootsokh(x.tariff, bsanMin);
-        if (tariff > 0) tulbur = tulbur + tariff;
-      } else if (orsonSec < zStartSec && zEndSec < garsanSec) {
-        const bsanMin = zuruuMinut ? zuruuMinut : (zEndSec - zStartSec) / 60;
-        const tariff = await tariffTootsokh(x.tariff, bsanMin);
-        if (tariff > 0) tulbur = tulbur + tariff;
+      x.tariff.sort((a: any, b: any) => a.minut - b.minut);
+      if (zEndSec < zStartSec) {
+        const isInOvernight =
+          (orsonSec >= zStartSec && orsonSec <= 86400) ||
+          (orsonSec >= 0 && orsonSec <= zEndSec) ||
+          (garsanSec >= zStartSec && garsanSec <= 86400) ||
+          (garsanSec >= 0 && garsanSec <= zEndSec) ||
+          (orsonSec <= zStartSec && garsanSec >= zEndSec);
+
+        if (isInOvernight) {
+          let overlapStart = orsonSec;
+          if (orsonSec < zStartSec) overlapStart = zStartSec;
+          if (garsanSec <= zEndSec) {
+            const bsanMin = (garsanSec + (86400 - overlapStart)) / 60;
+            const tariff = await tariffTootsokh(x.tariff, bsanMin);
+            if (tariff > 0) tulbur += tariff;
+          } else {
+            const bsanMin = (86400 - overlapStart) / 60;
+            const tariff = await tariffTootsokh(x.tariff, bsanMin);
+            if (tariff > 0) tulbur += tariff;
+          }
+        }
+      } else {
+        if (zStartSec <= orsonSec && zEndSec >= orsonSec && zEndSec >= garsanSec) {
+          var bsanMin: number = 0;
+          if (!!gantsXuwiartai) bsanMin = zuruuMinut ? zuruuMinut : (zEndSec - orsonSec + (garsanSec - zStartSec)) / 60;
+          else bsanMin = zuruuMinut ? zuruuMinut : (garsanSec - orsonSec) / 60;
+          const tariff = await tariffTootsokh(x.tariff, bsanMin);
+          if (tariff > 0) tulbur = tariff;
+          break;
+        } else if (zStartSec <= orsonSec && zEndSec >= orsonSec && zEndSec <= garsanSec) {
+          const bsanMin = Math.trunc(zuruuMinut ? zuruuMinut : (zEndSec - orsonSec) / 60);
+          const tariff = await tariffTootsokh(x.tariff, bsanMin);
+          if (tariff > 0) tulbur = tulbur + tariff;
+        } else if (orsonSec < zStartSec && zStartSec < garsanSec && zEndSec >= garsanSec) {
+          const bsanMin = zuruuMinut ? zuruuMinut : (garsanSec - zStartSec) / 60;
+          const tariff = await tariffTootsokh(x.tariff, bsanMin);
+          if (tariff > 0) tulbur = tulbur + tariff;
+        } else if (orsonSec < zStartSec && zEndSec < garsanSec) {
+          const bsanMin = zuruuMinut ? zuruuMinut : (zEndSec - zStartSec) / 60;
+          const tariff = await tariffTootsokh(x.tariff, bsanMin);
+          if (tariff > 0) tulbur = tulbur + tariff;
+        }
       }
     }
     return tulbur;
