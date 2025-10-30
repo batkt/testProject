@@ -150,7 +150,7 @@ const tulburBodoy = async (
 router.post("/tulburBodoy", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const garsan = new Date(); // одоо цаг
-    const orson = new Date("2025-10-30T09:59:45.412"); // орсон цаг
+    const orson = new Date(req.body.orsonOgnoo); // орсон цаг
 
     const dun = await tulburBodoy(
       req.body.tulburuud,    // төлбөрийн бүтэц
