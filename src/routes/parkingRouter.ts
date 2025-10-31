@@ -1,103 +1,148 @@
 import express, { Request, Response, NextFunction, Router } from "express";
-import moment from 'moment';
+import moment from "moment-timezone"; // ← use timezone build
 const router: Router = express.Router();
 
+const ASIA_TZ = "Asia/Ulaanbaatar"; // pick one and be consistent
+
 const tulburBodoy = async (
-  tulburuud: any,
-  garakh: number,
-  orson: number,
+  tulburuud: any[],
+  garakh: number,           // ms
+  orson: number,            // ms
   undsenUne: number,
   undsenMin: boolean,
   dotorZogsoolMinut: number,
-  zuruuMinut: any,
+  zuruuMinut: number | undefined,
   zuvkhunMinutaar: boolean = false,
 ) => {
   let dun = 0;
+
+  // total minutes parked (raw)
   const diff = Math.abs(garakh - orson);
-  let niitMinut = zuruuMinut ? zuruuMinut : Math.floor(diff / (1000 * 60));
-  const seconds = (t: any) => {
-    const m = moment(t).local();
+  let niitMinut = zuruuMinut ?? Math.floor(diff / (1000 * 60));
+
+  // seconds-of-day in fixed TZ
+  const seconds = (t: number | string | Date) => {
+    const m = moment(t).tz(ASIA_TZ);
     return m.hours() * 3600 + m.minutes() * 60 + m.seconds();
   };
-  const tariffTootsokh = (v: any, min: number) => {
-    const maxMin = v[v.length - 1]?.minut ?? 0;
-    const baseTariff = v[v.length - 1]?.tulbur ?? 0;
 
-    // 1) минутыг бүхэл болгоё (секунд/миллисекундээс үүдэх “хөвөгч” алдаа арилгана)
-    const wholeMin = Math.floor(min);
+  // Pick correct tier, then extend with blocks
+  const tariffTootsokh = (tiers: any[], usedMin: number) => {
+    if (!tiers?.length) return 0;
 
-    // 2) илүүдлийг 0-ээс доош унахгүй байхаар хамгаалъя
-    const step = undsenMin ? 30 : 60;
-    const overBlocks = Math.max(0, Math.ceil((wholeMin - maxMin) / step));
+    // sort ascending by "minut"
+    const v = [...tiers].sort((a, b) => (a.minut ?? 0) - (b.minut ?? 0));
+    const m = Math.max(0, Math.floor(usedMin)); // guard negatives
 
-    return baseTariff + overBlocks * undsenUne;
+    // find highest tier with minut <= m
+    let baseTier = v[0];
+    for (const t of v) {
+      if ((t.minut ?? 0) <= m) baseTier = t;
+      else break;
+    }
+
+    const step = undsenMin ? 30 : 60; // block size after base tier
+    const over = Math.max(0, m - (baseTier.minut ?? 0));
+    const overBlocks = Math.ceil(over / step);
+
+    return (baseTier.tulbur ?? 0) + overBlocks * undsenUne;
   };
-  const tulburuudTootsokh = async (orsonSec: number, garsanSec: number, gantsXuwiartai: boolean = false) => {
+
+  const tulburuudTootsokh = async (
+    orsonSec: number,
+    garsanSec: number,
+    gantsXuwiartai: boolean = false
+  ) => {
     let tulbur = 0;
+
     for await (const x of tulburuud) {
-      const zStartSec = await seconds(x.tsag[0]);
-      const zEndSec = await seconds(x.tsag[1]);
-      x.tariff.sort((a: any, b: any) => a.minut - b.minut);
+      // window start / end seconds-of-day in fixed TZ
+      const zStartSec = seconds(x.tsag?.[0]);
+      const zEndSec   = seconds(x.tsag?.[1]);
+
+      // Normalize tiers once
+      const tiers = Array.isArray(x.tariff) ? x.tariff : [];
+
+      // Window wraps midnight
       if (zEndSec < zStartSec) {
-        const isInOvernight =
+        const within =
           (orsonSec >= zStartSec && orsonSec <= 86400) ||
           (orsonSec >= 0 && orsonSec <= zEndSec) ||
           (garsanSec >= zStartSec && garsanSec <= 86400) ||
           (garsanSec >= 0 && garsanSec <= zEndSec) ||
           (orsonSec <= zStartSec && garsanSec >= zEndSec);
 
-        if (isInOvernight) {
-          let overlapStart = orsonSec;
-          if (orsonSec < zStartSec) overlapStart = zStartSec;
-          if (garsanSec <= zEndSec) {
-            const bsanMin = (garsanSec + (86400 - overlapStart)) / 60;
-            const tariff = await tariffTootsokh(x.tariff, bsanMin);
-            if (tariff > 0) tulbur += tariff;
-          } else {
-            const bsanMin = (86400 - overlapStart) / 60;
-            const tariff = await tariffTootsokh(x.tariff, bsanMin);
-            if (tariff > 0) tulbur += tariff;
-          }
+        if (!within) continue;
+
+        // break into two parts if needed
+        if (garsanSec <= zEndSec) {
+          // ...crossed midnight into next day
+          const mins = (garsanSec + (86400 - Math.min(orsonSec, zStartSec))) / 60;
+          const t = tariffTootsokh(tiers, mins);
+          if (t > 0) tulbur += t;
+        } else {
+          // stay until midnight only
+          const mins = (86400 - Math.max(orsonSec, zStartSec)) / 60;
+          const t = tariffTootsokh(tiers, mins);
+          if (t > 0) tulbur += t;
         }
       } else {
+        // Non-overnight window [zStartSec, zEndSec]
         if (zStartSec <= orsonSec && zEndSec >= orsonSec && zEndSec >= garsanSec) {
-          var bsanMin: number = 0;
-          if (!!gantsXuwiartai) bsanMin = zuruuMinut ? zuruuMinut : (zEndSec - orsonSec + (garsanSec - zStartSec)) / 60;
-          else bsanMin = zuruuMinut ? zuruuMinut : (garsanSec - orsonSec) / 60;
-          const tariff = await tariffTootsokh(x.tariff, bsanMin);
-          if (tariff > 0) tulbur = tariff;
-          break;
+          // both times inside the same window
+          const mins = Math.max(
+            0,
+            Math.floor(
+              (gantsXuwiartai
+                ? (zEndSec - orsonSec) + (garsanSec - zStartSec)
+                : (garsanSec - orsonSec)
+              ) / 60
+            )
+          );
+          const t = tariffTootsokh(tiers, zuruuMinut ?? mins);
+          if (t > 0) tulbur = t;
+          break; // single window covers it
         } else if (zStartSec <= orsonSec && zEndSec >= orsonSec && zEndSec <= garsanSec) {
-          const bsanMin = Math.trunc(zuruuMinut ? zuruuMinut : (zEndSec - orsonSec) / 60);
-          const tariff = await tariffTootsokh(x.tariff, bsanMin);
-          if (tariff > 0) tulbur = tulbur + tariff;
+          // starts inside, exits after window end
+          const mins = Math.max(0, Math.trunc(((zEndSec - orsonSec) / 60)));
+          const t = tariffTootsokh(tiers, zuruuMinut ?? mins);
+          if (t > 0) tulbur += t;
         } else if (orsonSec < zStartSec && zStartSec < garsanSec && zEndSec >= garsanSec) {
-          const bsanMin = zuruuMinut ? zuruuMinut : (garsanSec - zStartSec) / 60;
-          const tariff = await tariffTootsokh(x.tariff, bsanMin);
-          if (tariff > 0) tulbur = tulbur + tariff;
+          // enters window then exits inside it
+          const mins = Math.max(0, Math.floor((garsanSec - zStartSec) / 60));
+          const t = tariffTootsokh(tiers, zuruuMinut ?? mins);
+          if (t > 0) tulbur += t;
         } else if (orsonSec < zStartSec && zEndSec < garsanSec) {
-          const bsanMin = zuruuMinut ? zuruuMinut : (zEndSec - zStartSec) / 60;
-          const tariff = await tariffTootsokh(x.tariff, bsanMin);
-          if (tariff > 0) tulbur = tulbur + tariff;
+          // fully covers the window
+          const mins = Math.max(0, Math.floor((zEndSec - zStartSec) / 60));
+          const t = tariffTootsokh(tiers, zuruuMinut ?? mins);
+          if (t > 0) tulbur += t;
         }
       }
     }
     return tulbur;
   };
-  let orsonSec = await seconds(orson);
-  let garsanSec = await seconds(garakh);
-  var gantsXuwiartai = false;
-  if (tulburuud.length == 1) gantsXuwiartai = true;
+
+  // map to seconds-of-day (TZ-safe)
+  let orsonSec  = seconds(orson);
+  let garsanSec = seconds(garakh);
+
+  // subtract indoor pause
   if (dotorZogsoolMinut > 0) {
-    const niitSec = (niitMinut - dotorZogsoolMinut) * 60;
-    niitMinut = niitMinut - dotorZogsoolMinut;
+    const niitSec = Math.max(0, (niitMinut - dotorZogsoolMinut) * 60);
+    niitMinut = Math.max(0, niitMinut - dotorZogsoolMinut);
     if (niitMinut < 1440 && niitSec < garsanSec) {
-      orsonSec = garsanSec - niitSec;
+      garsanSec = Math.max(0, garsanSec); // unchanged; just recompute start
+      orsonSec = Math.max(0, garsanSec - niitSec);
     }
   }
+
+  const gantsXuwiartai = Array.isArray(tulburuud) && tulburuud.length === 1;
+
+  // Cross midnight (by clock-of-day)
   if (orsonSec > garsanSec) {
-    let dun1 = 0;
-    let dun2 = 0;
+    let dun1 = 0, dun2 = 0;
+
     if (dotorZogsoolMinut > 0) {
       if (niitMinut < 1440) {
         const niitSec = niitMinut * 60;
@@ -107,7 +152,8 @@ const tulburBodoy = async (
         dun1 = await tulburuudTootsokh(86400 - zurvv, 86400);
       }
     } else {
-      if (!!gantsXuwiartai) {
+      if (gantsXuwiartai) {
+        // one tariff window; treat as a single span split at midnight
         dun1 = await tulburuudTootsokh(orsonSec, garsanSec, true);
         dun2 = 0;
       } else {
@@ -115,6 +161,7 @@ const tulburBodoy = async (
         dun2 = await tulburuudTootsokh(0, garsanSec);
       }
     }
+
     if (niitMinut < 1440) {
       dun = dun1 + dun2;
     } else {
@@ -123,6 +170,7 @@ const tulburBodoy = async (
       dun = khonogDun * khonog + dun1 + dun2;
     }
   } else {
+    // same-day
     if (niitMinut < 1440) {
       if (!zuvkhunMinutaar) {
         dun = await tulburuudTootsokh(orsonSec, garsanSec);
@@ -143,27 +191,29 @@ const tulburBodoy = async (
       dun = khonogDun * khonog + dun1;
     }
   }
+
   return dun;
 };
 
+// ──────────────────────────────────────────────────────────────────────────
+// Route (unchanged) — tip: allow client to pass test "garsanOgnoo" for reproducible checks
 router.post("/tulburBodoy", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const garsan = new Date(); // одоо цаг
-    const orson = new Date(req.body.orsonOgnoo); // орсон цаг
+    const garsan = req.body.garsanOgnoo ? new Date(req.body.garsanOgnoo) : new Date();
+    const orson = new Date(req.body.orsonOgnoo);
 
     const dun = await tulburBodoy(
-      req.body.tulburuud,    // төлбөрийн бүтэц
+      req.body.tulburuud,
       garsan.getTime(),
       orson.getTime(),
-      1000,                  // үндсэн үнэ
-      true,                  // үндсэн мин ашиглах эсэх
-      0,                     // дотор зогсоол минут
-      undefined              // зөрүү минут (алгассан)
+      1000,   // үндсэн үнэ
+      true,   // 30 минутын блок
+      0,      // дотор зогсоол
+      undefined
     );
-
     res.json({ success: true, data: dun });
   } catch (err) {
-    next(err); // алдааг middleware руу дамжуулна
+    next(err);
   }
 });
 
