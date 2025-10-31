@@ -41,6 +41,7 @@ const tulburBodoy = async (
       const zEndSec = await seconds(x.tsag[1]);
       x.tariff.sort((a: any, b: any) => a.minut - b.minut);
       if (zEndSec < zStartSec) {
+        console.log('Normal Time Frame -------------------', { zStartSec, zEndSec, orsonSec, garsanSec });
         const isInOvernight =
           (orsonSec >= zStartSec && orsonSec <= 86400) ||
           (orsonSec >= 0 && orsonSec <= zEndSec) ||
