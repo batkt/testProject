@@ -41,7 +41,6 @@ const tulburBodoy = async (
       const zEndSec = await seconds(x.tsag[1]);
       x.tariff.sort((a: any, b: any) => a.minut - b.minut);
       if (zEndSec < zStartSec) {
-        console.log('Normal Time Frame -------------------', { zStartSec, zEndSec, orsonSec, garsanSec });
         const isInOvernight =
           (orsonSec >= zStartSec && orsonSec <= 86400) ||
           (orsonSec >= 0 && orsonSec <= zEndSec) ||
@@ -63,7 +62,6 @@ const tulburBodoy = async (
           }
         }
       } else {
-        console.log('Normal Time Frame', { zStartSec, zEndSec, orsonSec, garsanSec });
         if (zStartSec <= orsonSec && zEndSec >= orsonSec && zEndSec >= garsanSec) {
           var bsanMin: number = 0;
           if (!!gantsXuwiartai) bsanMin = zuruuMinut ? zuruuMinut : (zEndSec - orsonSec + (garsanSec - zStartSec)) / 60;
@@ -159,8 +157,8 @@ router.post("/tulburBodoy", async (req: Request, res: Response, next: NextFuncti
       req.body.tulburuud,    // төлбөрийн бүтэц
       garsan.getTime(),
       orson.getTime(),
-      1000,                  // үндсэн үнэ
-      true,                  // үндсэн мин ашиглах эсэх
+      req.body.undsenUne,                  // үндсэн үнэ
+      req.body.undsenMin,                  // үндсэн мин ашиглах эсэх
       0,                     // дотор зогсоол минут
       undefined              // зөрүү минут (алгассан)
     );
